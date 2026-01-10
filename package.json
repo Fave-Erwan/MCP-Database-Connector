@@ -1,0 +1,38 @@
+{
+  "name": "mcp-database-connector",
+  "version": "1.0.0",
+  "description": "A Model Context Protocol (MCP) server for secure SQL database access",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "watch": "tsc --watch",
+    "ui:dev": "cd ui && npm run dev",
+    "electron:dev": "npx tsc && concurrently \"npm:ui:dev\" \"wait-on http://localhost:5173 && electron .\""
+  },
+  "keywords": [
+    "MCP",
+    "Model Context Protocol",
+    "SQL",
+    "Database",
+    "AI"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "dotenv": "^16.3.1",
+    "knex": "^3.1.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "concurrently": "^8.2.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^24.6.0",
+    "typescript": "^5.3.3",
+    "wait-on": "^7.0.1"
+  }
+}
