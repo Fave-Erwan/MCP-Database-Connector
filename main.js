@@ -9,50 +9,66 @@ let dbConnection = null;
 
 ipcMain.handle('db:connect', async (event, config) => {
     try {
-        // Si une connexion existe déjà, on la ferme
         if (dbConnection) await dbConnection.destroy();
 
-        let knexConfig = {};
-
-        if (config.type === 'sqlite') {
-            knexConfig = {
-                client: 'sqlite3',
-                connection: { filename: config.filepath },
-                useNullAsDefault: true
-            };
-        } else {
-            // PostgreSQL ou MySQL
-            knexConfig = {
-                client: config.type === 'postgres' ? 'pg' : 'mysql2',
-                connection: {
+        const knexConfig = {
+            client: config.type === 'sqlite' ? 'sqlite3' : (config.type === 'postgres' ? 'pg' : 'mysql2'),
+            connection: config.type === 'sqlite'
+                ? { filename: config.filepath }
+                : {
                     host: config.host,
                     port: Number(config.port),
                     user: config.user,
                     password: config.password,
                     database: config.database,
-                }
-            };
-        }
+                },
+            useNullAsDefault: config.type === 'sqlite',
+            // On réduit le timeout pour ne pas attendre 30 secondes en cas d'erreur
+            acquireConnectionTimeout: 5000
+        };
 
         dbConnection = knex(knexConfig);
 
-        // TEST : On essaie de lister les tables pour vérifier que ça marche
+        // TEST DE CONNEXION RÉEL
         let tables = [];
         if (config.type === 'sqlite') {
             const res = await dbConnection.raw("SELECT name FROM sqlite_master WHERE type='table'");
             tables = res.map(r => r.name);
         } else {
-            // Requête universelle pour Postgres/MySQL
-            const res = await dbConnection.raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' OR table_schema = ?", [config.database]);
-            tables = res.rows ? res.rows.map(r => r.table_name) : res[0].map(r => r.table_name);
+            // Pour Postgres/MySQL, on interroge le schéma
+            const schema = config.type === 'postgres' ? 'public' : config.database;
+            const res = await dbConnection.raw(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
+                [schema]
+            );
+            // Ajustement selon le driver (pg renvoie .rows, mysql renvoie un array)
+            const rows = res.rows || res[0];
+            tables = rows.map(r => r.table_name || r.TABLE_NAME);
         }
 
-        console.log("Connexion réussie ! Tables trouvées :", tables);
         return { success: true, tables };
 
-    } catch (error) {
-        console.error("Erreur de connexion :", error);
-        return { success: false, error: error.message };
+    } catch (err) {
+        console.log("ERREUR DÉTECTÉE :", err.code); // Pour voir le code exact
+
+        let friendlyMessage = "Échec de la connexion.";
+
+        // On vérifie err.code OU err.nativeError.code (parfois Knex encapsule l'erreur)
+        const errorCode = err.code || (err.nativeError && err.nativeError.code);
+
+        if (errorCode === 'ECONNREFUSED') {
+            friendlyMessage = "Le serveur est éteint ou refuse la connexion (Vérifiez le service PostgreSQL).";
+        } else if (errorCode === '28P01' || errorCode === 'ER_ACCESS_DENIED_ERROR') {
+            friendlyMessage = "Identifiants incorrects (Utilisateur ou Mot de passe).";
+        } else if (errorCode === '3D000' || errorCode === 'ER_BAD_DB_ERROR') {
+            friendlyMessage = "La base de données spécifiée n'existe pas.";
+        } else if (err.message.includes('ENOENT')) {
+            friendlyMessage = "Le fichier SQLite est introuvable au chemin indiqué.";
+        } else {
+            friendlyMessage = err.message; // Message par défaut si inconnu
+        }
+
+        return { success: false, error: friendlyMessage };
     }
 });
 
@@ -96,10 +112,10 @@ function createWindow() {
         height: Math.floor(height * 0.8),
         minWidth: 1000,
         minHeight: 700,
-        
+
         show: false, // On cache jusqu'à ce que ce soit prêt
         backgroundColor: '#0f172a', // Couleur de ton Dashboard
-        
+
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
