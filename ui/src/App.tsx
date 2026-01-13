@@ -25,7 +25,7 @@ export default function App() {
             if (result.success) {
                 const tablePerms = result.tables.map((name: string) => ({
                     table_name: name,
-                    can_read: true,    // Par défaut, l'IA doit lire pour comprendre
+                    can_read: false,    // Par défaut, l'IA doit lire pour comprendre
                     can_write: false,  // Écriture bloquée par défaut
                     can_delete: false  // Suppression bloquée par défaut (SÉCURITÉ)
                 }));
@@ -71,6 +71,29 @@ export default function App() {
         setConfirmAction(null);
     };
 
+    const applyGlobalPermission = (type: 'read' | 'write' | 'delete', value: boolean) => {
+        // Si on essaie d'ACTIVER (true) la lecture ou la suppression globalement
+        if (value === true && (type === 'read' || type === 'delete')) {
+            setConfirmAction({
+                tableName: "TOUTES LES TABLES",
+                type: type
+            });
+            return;
+        }
+
+        // Pour l'écriture ou pour désactiver, on applique directement
+        executeGlobalToggle(type, value);
+    };
+
+    // La fonction qui fait réellement le travail sur l'état
+    const executeGlobalToggle = (type: string, value: boolean) => {
+        setPerms(prev => prev.map(p => ({
+            ...p,
+            [`can_${type}`]: value
+        })));
+        setConfirmAction(null);
+    };
+
 
     // --- 1. ÉCRAN DE CONNEXION ---
     if (!isConnected) {
@@ -83,8 +106,9 @@ export default function App() {
                     if (data.tables && data.tables.length > 0) {
                         const tablePerms = data.tables.map((name: string) => ({
                             table_name: name,
-                            can_read: true,
-                            can_write: false
+                            can_read: false,    // Par défaut, l'IA doit lire pour comprendre
+                            can_write: false,  // Écriture bloquée par défaut
+                            can_delete: false
                         }));
                         setPerms(tablePerms);
                     } else {
@@ -165,32 +189,61 @@ export default function App() {
                     <div className="animate-in fade-in duration-500">
                         <h1 className="text-2xl font-bold mb-6">Gestion des Accès IA</h1>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-gray-800/40 p-4 rounded-2xl border border-gray-700/50">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-gray-800/40 p-4 rounded-2xl border border-gray-700/50 shadow-inner">
+                            {/* LECTURE - BLEU */}
                             <div className="flex items-start gap-3">
-                                <div className="mt-1 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                                <div className="mt-1 w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]"></div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-200 uppercase tracking-wider">Lecture (SELECT)</p>
-                                    <p className="text-[11px] text-gray-400 leading-tight">Permet à l'IA de consulter les données pour répondre aux questions.</p>
+                                    <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Lecture (SELECT)</p>
+                                    <p className="text-[11px] text-gray-400 mt-1 leading-tight">Accès total au contenu. L'IA peut analyser et citer les données.</p>
                                 </div>
                             </div>
 
+                            {/* ÉCRITURE - ORANGE */}
                             <div className="flex items-start gap-3 border-l border-gray-700/50 pl-4">
-                                <div className="mt-1 w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"></div>
+                                <div className="mt-1 w-3 h-3 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.6)]"></div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-200 uppercase tracking-wider">Écriture (INSERT/UPDATE)</p>
-                                    <p className="text-[11px] text-gray-400 leading-tight">Autorise l'IA à ajouter ou modifier des informations existantes.</p>
+                                    <p className="text-xs font-black text-orange-400 uppercase tracking-widest">Écriture (INSERT/UPDATE)</p>
+                                    <p className="text-[11px] text-gray-400 mt-1 leading-tight">Modification autorisée. L'IA peut ajouter ou éditer des entrées.</p>
                                 </div>
                             </div>
 
+                            {/* SUPPRESSION - ROUGE */}
                             <div className="flex items-start gap-3 border-l border-gray-700/50 pl-4">
-                                <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                                <div className="mt-1 w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-pulse"></div>
                                 <div>
-                                    <p className="text-xs font-bold text-gray-200 uppercase tracking-wider">Suppression (DELETE)</p>
-                                    <p className="text-[11px] text-gray-400 leading-tight">Donne le droit d'effacer définitivement des données (Action à haut risque).</p>
+                                    <p className="text-xs font-black text-red-500 uppercase tracking-widest">Suppression (DELETE)</p>
+                                    <p className="text-[11px] text-gray-400 mt-1 leading-tight">Risque élevé. L'IA peut effacer définitivement des données.</p>
                                 </div>
                             </div>
                         </div>
-                        
+
+
+                        <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-gray-800/60 rounded-xl border border-blue-500/20">
+                            <span className="text-sm font-bold text-blue-400 uppercase tracking-widest mr-2">Actions Globales :</span>
+
+                            {/* Groupe Lecture */}
+                            <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+                                <button onClick={() => applyGlobalPermission('read', true)} className="px-3 py-1 text-[10px] font-bold text-blue-400 hover:bg-blue-500/10 rounded-md transition-all">LIRE TOUT</button>
+                                <div className="w-px bg-gray-700 mx-1"></div>
+                                <button onClick={() => applyGlobalPermission('read', false)} className="px-3 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-700 rounded-md transition-all">BLOQUER TOUT</button>
+                            </div>
+
+                            {/* Groupe Écriture */}
+                            <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+                                <button onClick={() => applyGlobalPermission('write', true)} className="px-3 py-1 text-[10px] font-bold text-orange-400 hover:bg-orange-500/10 rounded-md transition-all">ÉCRIRE TOUT</button>
+                                <div className="w-px bg-gray-700 mx-1"></div>
+                                <button onClick={() => applyGlobalPermission('write', false)} className="px-3 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-700 rounded-md transition-all">BLOQUER TOUT</button>
+                            </div>
+
+                            {/* Groupe Suppression */}
+                            <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+                                <button onClick={() => applyGlobalPermission('delete', true)} className="px-3 py-1 text-[10px] font-bold text-red-500 hover:bg-red-500/10 rounded-md transition-all">⚠️ SUPPRIMER TOUT</button>
+                                <div className="w-px bg-gray-700 mx-1"></div>
+                                <button onClick={() => applyGlobalPermission('delete', false)} className="px-3 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-700 rounded-md transition-all">SÉCURISER TOUT</button>
+                            </div>
+                        </div>
+
                         {perms.length === 0 ? (
                             <div className="text-center p-12 border-2 border-dashed border-gray-700 rounded-2xl">
                                 <p className="italic text-gray-500">Aucune table trouvée dans cette base de données.</p>
@@ -225,7 +278,7 @@ export default function App() {
                                             {/* Bouton SUPPRESSION (Ajouté) */}
                                             <button
                                                 onClick={() => togglePermission(p.table_name, 'delete')}
-                                                className={`flex justify-between items-center p-2 rounded-lg border transition-colors ${p.can_delete ? 'bg-red-600/20 border-red-500 text-red-400 font-bold' : 'bg-gray-700/50 border-gray-600 text-gray-500'}`}
+                                                className={`flex justify-between items-center p-2 rounded-lg border transition-colors ${p.can_delete ? 'bg-green-600/20 border-green-500 text-green-400 font-bold' : 'bg-gray-700/50 border-gray-600 text-gray-500'}`}
                                             >
                                                 <span className="text-[10px] uppercase tracking-tighter">Suppression (DELETE)</span>
                                                 <span className="text-sm">{p.can_delete ? '⚠️ ACTIF' : 'OFF'}</span>
@@ -255,34 +308,49 @@ export default function App() {
                 {/* CONFIRMATION DE DROIT DONNER A L'IA */}
                 {confirmAction && (
                     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-10000 p-4">
-                        <div className="bg-gray-800 border border-gray-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-in zoom-in duration-200">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${confirmAction.type === 'delete' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
-                                <span className="text-xl font-bold">{confirmAction.type === 'delete' ? '⚠️' : 'ℹ️'}</span>
+                        <div className="bg-gray-800 border border-gray-700 p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-in zoom-in duration-200 text-center">
+                            {/* Icône */}
+                            <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-4 ${confirmAction.type === 'delete' ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-blue-500'}`}>
+                                <span className="text-2xl font-bold">{confirmAction.type === 'delete' ? '⚠️' : 'ℹ️'}</span>
                             </div>
 
-                            <h3 className="text-lg font-bold text-white mb-2">
-                                {confirmAction.type === 'delete' ? 'Autoriser le droit de suppression' : 'Accès aux données'}
+                            {/* Titre Dynamique */}
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                {confirmAction.tableName === "TOUTES LES TABLES"
+                                    ? "Action Globale"
+                                    : confirmAction.type === 'delete' ? "Droit de suppression" : "Droit de lecture"
+                                }
                             </h3>
 
-                            <p className="text-gray-400 text-sm mb-6">
-                                {confirmAction.type === 'delete'
-                                    ? `DANGER : L'IA pourra effacer définitivement des données dans "${confirmAction.tableName}".`
-                                    : `Attention : L'IA aura un accès complet en lecture à la table "${confirmAction.tableName}".`
+                            {/* Description Corrigée */}
+                            <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                                {confirmAction.tableName === "TOUTES LES TABLES"
+                                    ? (confirmAction.type === 'delete'
+                                        ? "Vous allez autoriser l'IA de pouvoir supprimer des données sur l'ensemble de la bdd."
+                                        : "Vous allez autoriser l'IA de pouvoir lire les données sur l'ensemble de la bdd.")
+                                    : `Attention : L'IA aura un accès complet en ${confirmAction.type === 'delete' ? 'SUPPRESSION' : 'LECTURE'} sur la table "${confirmAction.tableName}".`
                                 }
                             </p>
 
+                            {/* Boutons */}
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => setConfirmAction(null)}
-                                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg font-medium transition-colors"
+                                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-xl font-medium transition-colors"
                                 >
                                     Annuler
                                 </button>
                                 <button
-                                    onClick={() => applyToggle(confirmAction.tableName, confirmAction.type)}
-                                    className={`flex-1 py-2 rounded-lg font-bold text-white transition-all ${confirmAction.type === 'delete' ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
+                                    onClick={() => {
+                                        if (confirmAction.tableName === "TOUTES LES TABLES") {
+                                            executeGlobalToggle(confirmAction.type, true);
+                                        } else {
+                                            applyToggle(confirmAction.tableName, confirmAction.type);
+                                        }
+                                    }}
+                                    className={`flex-1 py-2.5 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 ${confirmAction.type === 'delete' ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20'}`}
                                 >
-                                    Autoriser
+                                    {confirmAction.tableName === "TOUTES LES TABLES" ? "Autoriser pour tout" : "Autoriser"}
                                 </button>
                             </div>
                         </div>
