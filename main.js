@@ -1,9 +1,73 @@
-import { app, BrowserWindow, screen, ipcMain } from 'electron';
+import { app, BrowserWindow, screen, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import knex from 'knex';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+let dbConnection = null;
+
+ipcMain.handle('db:connect', async (event, config) => {
+    try {
+        // Si une connexion existe déjà, on la ferme
+        if (dbConnection) await dbConnection.destroy();
+
+        let knexConfig = {};
+
+        if (config.type === 'sqlite') {
+            knexConfig = {
+                client: 'sqlite3',
+                connection: { filename: config.filepath },
+                useNullAsDefault: true
+            };
+        } else {
+            // PostgreSQL ou MySQL
+            knexConfig = {
+                client: config.type === 'postgres' ? 'pg' : 'mysql2',
+                connection: {
+                    host: config.host,
+                    port: Number(config.port),
+                    user: config.user,
+                    password: config.password,
+                    database: config.database,
+                }
+            };
+        }
+
+        dbConnection = knex(knexConfig);
+
+        // TEST : On essaie de lister les tables pour vérifier que ça marche
+        let tables = [];
+        if (config.type === 'sqlite') {
+            const res = await dbConnection.raw("SELECT name FROM sqlite_master WHERE type='table'");
+            tables = res.map(r => r.name);
+        } else {
+            // Requête universelle pour Postgres/MySQL
+            const res = await dbConnection.raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' OR table_schema = ?", [config.database]);
+            tables = res.rows ? res.rows.map(r => r.table_name) : res[0].map(r => r.table_name);
+        }
+
+        console.log("Connexion réussie ! Tables trouvées :", tables);
+        return { success: true, tables };
+
+    } catch (error) {
+        console.error("Erreur de connexion :", error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('dialog:openFile', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+            { name: 'Bases de données', extensions: ['db', 'sqlite', 'sqlite3'] }
+        ]
+    });
+    if (!canceled) {
+        return filePaths[0]; // Renvoie le chemin complet vers React
+    }
+    return null;
+});
 
 
 // Importe ta fonction qui lit les tables SQLite ici

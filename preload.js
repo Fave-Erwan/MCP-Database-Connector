@@ -4,4 +4,6 @@ contextBridge.exposeInMainWorld('api', {
     adminListPermissions: () => ipcRenderer.invoke('admin:list-permissions'),
     adminTogglePermission: (args) => ipcRenderer.invoke('admin:toggle-permission', args),
     onLog: (callback) => ipcRenderer.on('log-message', (event, value) => callback(value)),
+    selectFile: () => ipcRenderer.invoke('dialog:openFile'),
+    connectDB: (config) => ipcRenderer.invoke('db:connect', config),
 });
